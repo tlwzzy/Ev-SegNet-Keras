@@ -221,13 +221,15 @@ def train():
     if not os.path.exists('weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) + out_dir_name):
         os.makedirs('weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) + out_dir_name)
     weight_path = 'weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(
-        time.time())) + out_dir_name + '/{epoch:03d}_{val_acc:0.3f}.hdf5'
+        time.time())) + out_dir_name + '/{epoch:03d}_{val_IoU_fun:0.3f}.hdf5'
 
     # serialize weight to h5
     checkpoint = ModelCheckpoint(weight_path,
+                                 monitor='val_IoU_fun',
                                  verbose=1,
                                  save_best_only=True, mode='max')
-    reduce_lr = ReduceLROnPlateau(factor=0.2,
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss',
+                                  factor=0.2,
                                   patience=5,
                                   verbose=1,
                                   mode='auto',

@@ -75,8 +75,7 @@ def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1):
     model = Model(input=inputs, output=conv10)
 
     # model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
-    model.compile(optimizer=Adam(lr=1e-4), loss=IoU_loss_fun, metrics=[IoU_fun])
-
+    model.compile(optimizer=Adam(lr=1e-4), loss=IoU_loss_fun, metrics=['accuracy', IoU_fun])
     model.summary()
     plot_model(model, to_file='model.png', show_shapes=True, show_layer_names=False)
     if pretrained_weights:
