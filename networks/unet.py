@@ -8,18 +8,20 @@ from keras.layers import *
 from keras.optimizers import *
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras import backend as keras
-from keras.utils.vis_utils import plot_model
+# from keras.utils.vis_utils import plot_model
 
 
 def IoU_fun(y_true, y_pred, eps=1e-6):
+    # print("y_true", y_true.shape)
+    # print("y_pred", y_pred.shape)
     # if np.max(y_true) == 0.0:
     #     return IoU(1-y_true, 1-y_pred) ## empty image; calc IoU of zeros
-    intersection = K.sum(y_true * y_pred, axis=[1, 2, 3])
-    union = K.sum(y_true, axis=[1, 2, 3]) + K.sum(y_pred, axis=[1, 2, 3]) - intersection
+    intersection = K.sum(y_true * y_pred, axis=[1, 2])
+    union = K.sum(y_true, axis=[1, 2]) + K.sum(y_pred, axis=[1, 2]) - intersection
     #
-    ious = K.mean((intersection + eps) / (union + eps), axis=0)
+    ious = K.mean((intersection + eps) / (union + eps), axis=1)
 
-    return K.mean(ious)
+    return ious
 
 
 def IoU_loss_fun(y_true, y_pred, eps=1e-6):
@@ -69,15 +71,17 @@ def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1):
     merge9 = concatenate([conv1, up9], axis=3)
     conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(merge9)
     conv9 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
-    conv9 = Conv2D(num_class * 2, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
+    # conv9 = Conv2D(num_class * 2, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv9)
     conv10 = Conv2D(num_class, 1, activation='softmax')(conv9)
 
     model = Model(input=inputs, output=conv10)
 
     # model.compile(optimizer=Adam(lr=1e-4), loss='binary_crossentropy', metrics=['accuracy'])
-    model.compile(optimizer=Adam(lr=1e-4), loss=IoU_loss_fun, metrics=['accuracy', IoU_fun])
+    # model.compile(optimizer=Adam(lr=1e-4), loss=IoU_loss_fun, metrics=['accuracy', IoU_fun])
+    # model.compile(optimizer=Adam(lr=1e-3), loss="categorical_crossentropy", metrics=['accuracy', IoU_fun])
+    
     model.summary()
-    plot_model(model, to_file='model.png', show_shapes=True, show_layer_names=False)
+    # plot_model(model, to_file='model.png', show_shapes=True, show_layer_names=False)
     if pretrained_weights:
         model.load_weights(pretrained_weights)
 

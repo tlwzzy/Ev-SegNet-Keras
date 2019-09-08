@@ -20,21 +20,23 @@ from keras.models import load_model
 import cv2
 import time
 
+from networks.unet import IoU_fun
+
 # seed 1234 is used for reproducibility
 np.random.seed(seed=1234)
-os.environ['CUDA_VISIBLE_DEVICES'] = '0,1,2,3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '6'
 
 ## 0:Cross View, 1:Cross Subject
 subject = 1
 
 ## Data root
-data_root = 'datas'
+data_root = '/root/Ev-SegNet-old/datas/lanes'
 
 out_dir_name = 'MANs_subject'
 
 ## Parameters
 loss = 'categorical_crossentropy'
-lr = 0.1
+lr = 0.01
 momentum = 0.9
 
 activation = "relu"
@@ -42,15 +44,15 @@ optimizer = SGD(lr=lr, momentum=momentum, decay=0.0, nesterov=True)
 # optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 reg = l2(1.e-4)
 
-batch_size = 1
+batch_size = 16
 epochs = 100
-n_classes = 6
+n_classes = 5
 scale_w = 352
 scale_h = 224
 channel = 1
 
-samples_per_epoch = 10
-samples_per_validation = 10
+samples_per_epoch = 3589
+samples_per_validation = 1835
 
 
 class data_iter:
@@ -94,7 +96,7 @@ def train_data():
 
     X = np.zeros((batch_size, scale_h, scale_w, channel))
     Y = np.zeros((batch_size, scale_h, scale_w, n_classes))
-    print("++++++++++++++++++++++", Y.shape)
+    # print("++++++++++++++++++++++", Y.shape)
     batch_count = 0
     temp = 1
     while True:
@@ -217,7 +219,8 @@ def train():
     # model = to_multi_gpu(model, 4)
     # model.load_weights('039_0.827.hdf5')
     # model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-
+    model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=['accuracy', IoU_fun])
+    
     if not os.path.exists('weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) + out_dir_name):
         os.makedirs('weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) + out_dir_name)
     weight_path = 'weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(
