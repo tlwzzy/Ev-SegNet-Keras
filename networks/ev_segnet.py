@@ -4,6 +4,7 @@ from keras.layers import Lambda, Input
 from keras.models import Model
 from keras import backend as K
 from keras.optimizers import RMSprop, SGD, Adam
+import keras
 
 
 class Segception(tf.keras.Model):
@@ -133,17 +134,17 @@ class Segception_v2(tf.keras.Model):
             return x
 
 
-class Segception_small(tf.keras.Model):
+class Segception_small():
     def __init__(self, num_classes, input_shape=(None, None, 3), weights='imagenet', **kwargs):
         super(Segception_small, self).__init__(**kwargs)
-        self.base_model = tf.keras.applications.xception.Xception(include_top=False, weights=weights,
+        base_model = tf.keras.applications.xception.Xception(include_top=False, weights=weights,
                                                              input_shape=input_shape, pooling='avg')
-        output_1 = self.base_model.get_layer('block2_sepconv2_bn').output
-        output_2 = self.base_model.get_layer('block3_sepconv2_bn').output
-        output_3 = self.base_model.get_layer('block4_sepconv2_bn').output
-        output_4 = self.base_model.get_layer('block13_sepconv2_bn').output
-        output_5 = self.base_model.get_layer('block14_sepconv2_bn').output
-        self.outputs = [output_5, output_4, output_3, output_2, output_1]
+        output_1 = base_model.get_layer('block2_sepconv2_bn').output
+        output_2 = base_model.get_layer('block3_sepconv2_bn').output
+        output_3 = base_model.get_layer('block4_sepconv2_bn').output
+        output_4 = base_model.get_layer('block13_sepconv2_bn').output
+        output_5 = base_model.get_layer('block14_sepconv2_bn').output
+        outputs = [output_5, output_4, output_3, output_2, output_1]
 
         self.model_output = tf.keras.Model(inputs=base_model.input, outputs=outputs)
 
@@ -164,9 +165,7 @@ class Segception_small(tf.keras.Model):
 
     def call(self, inputs, training=True, mask=None, aux_loss=False):
         # print("inputs", inputs.shape)
-        # outputs = self.model_output(inputs, training=training)
-        self.base_model(inputs)
-        outputs = self.outputs
+        outputs = self.model_output(inputs, training=training)
         # add activations to the ourputs of the model
         for i in range(len(outputs)):
             # print(outputs[i].shape)
@@ -595,9 +594,68 @@ def loss(y_true, y_pred):
 
 
 def back_bone(x, input_size=(256, 256, 1), num_class=1):
-    model = Segception_small(num_classes=num_class, weights=None, input_shape=input_size)
-    y_, aux_y_ = model(x, training=True, aux_loss=True)
-    return y_, aux_y_
+    base_model = keras.applications.xception.Xception(include_top=False, input_shape=input_size, pooling='avg')(x)
+    output_1 = base_model.get_layer('block2_sepconv2_bn').output
+    output_2 = base_model.get_layer('block3_sepconv2_bn').output
+    output_3 = base_model.get_layer('block4_sepconv2_bn').output
+    output_4 = base_model.get_layer('block13_sepconv2_bn').output
+    output_5 = base_model.get_layer('block14_sepconv2_bn').output
+    outputs = [output_5, output_4, output_3, output_2, output_1]
+
+    # Encoder
+    adap_encoder_1 = EncoderAdaption(filters=128, kernel_size=3, dilation_rate=1)
+    adap_encoder_2 = EncoderAdaption(filters=128, kernel_size=3, dilation_rate=1)
+    adap_encoder_3 = EncoderAdaption(filters=128, kernel_size=3, dilation_rate=1)
+    adap_encoder_4 = EncoderAdaption(filters=64, kernel_size=3, dilation_rate=1)
+    adap_encoder_5 = EncoderAdaption(filters=32, kernel_size=3, dilation_rate=1)
+
+    # Decoder
+    decoder_conv_1 = FeatureGeneration(filters=128, kernel_size=3, dilation_rate=1, blocks=3)
+    decoder_conv_2 = FeatureGeneration(filters=64, kernel_size=3, dilation_rate=1, blocks=3)
+    decoder_conv_3 = FeatureGeneration(filters=32, kernel_size=3, dilation_rate=1, blocks=3)
+    decoder_conv_4 = FeatureGeneration(filters=32, kernel_size=3, dilation_rate=1, blocks=1)
+    aspp = ASPP_2(filters=32, kernel_size=3)
+
+    # output
+    conv_logits = conv(filters=num_class, kernel_size=1, strides=1, use_bias=True)
+
+    # build the net
+    # add activations to the ourputs of the model
+    for i in range(len(outputs)):
+        # print(outputs[i].shape)
+        outputs[i] = layers.LeakyReLU(alpha=0.3)(outputs[i])
+
+    # (outputs[0].shape)
+    x = adap_encoder_1(outputs[0])
+
+    x = upsampling(x, scale=2)
+    x += reshape_into(adap_encoder_2(outputs[1]), x)  # 512
+    x = decoder_conv_1(x)  # 256
+
+    x = upsampling(x, scale=2)
+    x += reshape_into(adap_encoder_3(outputs[2]), x)  # 256
+    x = decoder_conv_2(x)  # 256
+    # print("x1", x.shape)
+
+    x = upsampling(x, scale=2)
+    x += reshape_into(adap_encoder_4(outputs[3], x))  # 128
+    x = decoder_conv_3(x)  # 128
+    # print("x1", x.shape)
+
+    x = aspp(x, operation='sum')  # 128
+
+    x = upsampling(x, scale=2)
+    x += reshape_into(adap_encoder_5(outputs[4]), x)  # 64
+    x = decoder_conv_4(x)  # 64
+    # print("x1", x.shape)
+    x = conv_logits(x)
+    x = upsampling(x, scale=2)
+    # print("output", x.shape)
+    aux_loss = True
+    if aux_loss:
+        return x, x
+    else:
+        return x
 
 
 def segnet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
@@ -610,4 +668,3 @@ def segnet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.
     model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy', IoU_fun])
 
     return model
-
