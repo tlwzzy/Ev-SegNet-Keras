@@ -60,7 +60,7 @@ class Conv_BN(object):
         self.conv = conv(filters=filters, kernel_size=kernel_size, strides=strides)
         self.bn = layers.BatchNormalization(epsilon=1e-3, momentum=0.993)
 
-    def __call__(self, inputs, training=None, activation=True):
+    def __call__(self, inputs, training=True, activation=True):
         x = self.conv(inputs)
         x = self.bn(x, training=training)
         if activation:
@@ -81,7 +81,7 @@ class DepthwiseConv_BN(object):
                                   dilation_rate=dilation_rate)
         self.bn = layers.BatchNormalization(epsilon=1e-3, momentum=0.993)
 
-    def __call__(self, inputs, training=None):
+    def __call__(self, inputs, training=True):
         x = self.conv(inputs)
         x = self.bn(x, training=training)
         x = layers.LeakyReLU(alpha=0.3)(x)
@@ -100,7 +100,7 @@ class Transpose_Conv_BN(object):
         self.conv = transposeConv(filters=filters, kernel_size=kernel_size, strides=strides)
         self.bn = layers.BatchNormalization(epsilon=1e-3, momentum=0.993)
 
-    def call(self, inputs, training=None):
+    def call(self, inputs, training=True):
         x = self.conv(inputs)
         x = self.bn(x, training=training)
         x = layers.LeakyReLU(alpha=0.3)(x)
@@ -120,7 +120,7 @@ class ShatheBlock(object):
         self.conv2 = DepthwiseConv_BN(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
         self.conv3 = Conv_BN(filters, kernel_size=1)
 
-    def __call__(self, inputs, training=None):
+    def __call__(self, inputs, training=True):
         x = self.conv(inputs)
         x = self.conv1(x, training=training)
         x = self.conv2(x, training=training)
@@ -144,7 +144,7 @@ class ShatheBlock_MultiDil(object):
         self.conv5 = DepthwiseConv_BN(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
         self.conv6 = Conv_BN(filters, kernel_size=1)
 
-    def __call__(self, inputs, training=None):
+    def __call__(self, inputs, training=True):
         x1 = self.conv(inputs, training=training)
         x2 = self.conv1(x1, training=training)
         x3 = self.conv2(x1, training=training)
@@ -165,7 +165,7 @@ class ASPP(object):
         self.conv4 = DepthwiseConv_BN(filters, kernel_size=kernel_size, dilation_rate=16)
         self.conv5 = Conv_BN(filters, kernel_size=1)
 
-    def __call__(self, inputs, training=None, operation='concat'):
+    def __call__(self, inputs, training=True, operation='concat'):
         feature_map_size = tf.shape(inputs)
         image_features = tf.reduce_mean(inputs, [1, 2], keep_dims=True)
         image_features = self.conv1(image_features, training=training)
@@ -195,7 +195,7 @@ class ASPP_2(object):
         self.conv9 = DepthwiseConv_BN(filters, kernel_size=kernel_size, dilation_rate=(3, 6))
         self.conv5 = Conv_BN(filters, kernel_size=1)
 
-    def __call__(self, inputs, training=None, operation='concat'):
+    def __call__(self, inputs, training=True, operation='concat'):
         feature_map_size = tf.shape(inputs)
         image_features = tf.reduce_mean(inputs, [1, 2], keep_dims=True)
         image_features = self.conv1(image_features, training=training)
@@ -225,7 +225,7 @@ class DPC(object):
         self.conv4 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(1, 1))
         self.conv5 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(6, 3))
 
-    def __call__(self, inputs, training=None, operation='concat'):
+    def __call__(self, inputs, training=True, operation='concat'):
         x1 = self.conv1(inputs, training=training)
         x2 = self.conv2(x1, training=training)
         x3 = self.conv3(x1, training=training)
@@ -249,7 +249,7 @@ class EncoderAdaption(object):
         self.conv1 = Conv_BN(filters, kernel_size=1)
         self.conv2 = ShatheBlock(filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
 
-    def __call__(self, inputs, training=None):
+    def __call__(self, inputs, training=True):
         x = self.conv1(inputs, training=training)
         x = self.conv2(x, training=training)
         return x
@@ -268,7 +268,7 @@ class FeatureGeneration(object):
             self.blocks = self.blocks + [
                 ShatheBlock(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)]
 
-    def __call__(self, inputs, training=None):
+    def __call__(self, inputs, training=True):
 
         x = self.conv0(inputs, training=training)
         for block in self.blocks:
@@ -290,7 +290,7 @@ class FeatureGeneration_Dil(object):
             self.blocks = self.blocks + [
                 ShatheBlock_MultiDil(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)]
 
-    def __call__(self, inputs, training=None):
+    def __call__(self, inputs, training=True):
 
         x = self.conv0(inputs, training=training)
         for block in self.blocks:
