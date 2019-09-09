@@ -136,14 +136,14 @@ class Segception_v2(tf.keras.Model):
 class Segception_small(tf.keras.Model):
     def __init__(self, num_classes, input_shape=(None, None, 3), weights='imagenet', **kwargs):
         super(Segception_small, self).__init__(**kwargs)
-        base_model = tf.keras.applications.xception.Xception(include_top=False, weights=weights,
+        self.base_model = tf.keras.applications.xception.Xception(include_top=False, weights=weights,
                                                              input_shape=input_shape, pooling='avg')
-        output_1 = base_model.get_layer('block2_sepconv2_bn').output
-        output_2 = base_model.get_layer('block3_sepconv2_bn').output
-        output_3 = base_model.get_layer('block4_sepconv2_bn').output
-        output_4 = base_model.get_layer('block13_sepconv2_bn').output
-        output_5 = base_model.get_layer('block14_sepconv2_bn').output
-        outputs = [output_5, output_4, output_3, output_2, output_1]
+        output_1 = self.base_model.get_layer('block2_sepconv2_bn').output
+        output_2 = self.base_model.get_layer('block3_sepconv2_bn').output
+        output_3 = self.base_model.get_layer('block4_sepconv2_bn').output
+        output_4 = self.base_model.get_layer('block13_sepconv2_bn').output
+        output_5 = self.base_model.get_layer('block14_sepconv2_bn').output
+        self.outputs = [output_5, output_4, output_3, output_2, output_1]
 
         self.model_output = tf.keras.Model(inputs=base_model.input, outputs=outputs)
 
@@ -164,7 +164,9 @@ class Segception_small(tf.keras.Model):
 
     def call(self, inputs, training=True, mask=None, aux_loss=False):
         # print("inputs", inputs.shape)
-        outputs = self.model_output(inputs, training=training)
+        # outputs = self.model_output(inputs, training=training)
+        self.base_model(inputs)
+        outputs = self.outputs
         # add activations to the ourputs of the model
         for i in range(len(outputs)):
             # print(outputs[i].shape)
