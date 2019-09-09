@@ -162,7 +162,7 @@ class Segception_small(tf.keras.Model):
 
         self.conv_logits = conv(filters=num_classes, kernel_size=1, strides=1, use_bias=True)
 
-    def call(self, inputs, training=None, mask=None, aux_loss=False):
+    def call(self, inputs, training=True, mask=None, aux_loss=False):
         # print("inputs", inputs.shape)
         outputs = self.model_output(inputs, training=training)
         # add activations to the ourputs of the model
@@ -593,12 +593,12 @@ def loss(y_true, y_pred):
 
 
 def back_bone(x, input_size=(256, 256, 1), num_class=1):
-    model = Segception.Segception_small(num_classes=num_class, weights=None, input_shape=input_size)
+    model = Segception_small(num_classes=num_class, weights=None, input_shape=input_size)
     y_, aux_y_ = model(x, training=True, aux_loss=True)
     return y_, aux_y_
 
 
-def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
+def segnet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
     from networks.unet import IoU_fun, mean_iou
     inputs = Input(input_size)
     y_, aux_y_ = Lambda(back_bone, arguments={'input_size': input_size, 'num_class': num_class})(inputs)
