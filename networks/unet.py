@@ -76,7 +76,7 @@ def IoU_loss_fun(y_true, y_pred, eps=1e-6):
     return 1 - IoU_fun(y_true=y_true, y_pred=y_pred, eps=eps)
 
 
-def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1):
+def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.1, momentum=0.9):
     inputs = Input(input_size)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(inputs)
     conv1 = Conv2D(64, 3, activation='relu', padding='same', kernel_initializer='he_normal')(conv1)
@@ -130,6 +130,9 @@ def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1):
     
     model.summary()
     # plot_model(model, to_file='model.png', show_shapes=True, show_layer_names=False)
+    optimizer = SGD(lr=lr, momentum=momentum, decay=0.0, nesterov=True)
+    model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=['accuracy', mean_iou])
+
     if pretrained_weights:
         model.load_weights(pretrained_weights)
 

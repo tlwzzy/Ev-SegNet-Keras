@@ -40,7 +40,7 @@ lr = 0.01
 momentum = 0.9
 
 activation = "relu"
-optimizer = SGD(lr=lr, momentum=momentum, decay=0.0, nesterov=True)
+
 # optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
 reg = l2(1.e-4)
 
@@ -110,7 +110,7 @@ def train_data():
 
             x = cv2.resize(value, (scale_h, scale_w))
             label = cv2.resize(label, (scale_h, scale_w))
-            label = np.reshape(label, [scale_h*scale_w, 1])
+            label = np.reshape(label, [scale_h * scale_w, 1])
             label = to_categorical(label, num_classes=n_classes)
             label = np.reshape(label, [scale_h, scale_w, n_classes])
             x.setflags(write=1)
@@ -214,13 +214,12 @@ def to_multi_gpu(model, n_gpus=4):
 
 
 def train():
-    model = unet.unet(input_size=(scale_h, scale_w, channel), num_class=n_classes)
+    model = unet.unet(input_size=(scale_h, scale_w, channel), num_class=n_classes, lr=lr, momentum=momentum)
 
     # model = to_multi_gpu(model, 4)
     # model.load_weights('039_0.827.hdf5')
     # model.compile(optimizer=optimizer, loss='categorical_crossentropy', metrics=['accuracy'])
-    model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=['accuracy', mean_iou])
-    
+
     if not os.path.exists('weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) + out_dir_name):
         os.makedirs('weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(time.time())) + out_dir_name)
     weight_path = 'weights/' + time.strftime("%Y-%m-%d-%H_%M_%S", time.localtime(

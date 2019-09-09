@@ -2,6 +2,8 @@ import tensorflow as tf
 from tensorflow.keras import layers, regularizers
 from keras.layers import Lambda, Input
 from keras.models import Model
+from keras import backend as K
+from keras.optimizers import RMSprop, SGD, Adam
 
 
 class Segception(tf.keras.Model):
@@ -582,10 +584,13 @@ def loss(y_true, y_pred):
     y = y_true
     y_ = y_pred[0]
     aux_y_ = y_pred[1]
-    loss =
+    loss = K.categorical_crossentropy(y_true, y_)
+    loss_aux = K.categorical_crossentropy(y_true, aux_y_)
     # loss = tf.losses.softmax_cross_entropy(y, y_, weights=mask)  # compute loss
     # loss_aux = tf.losses.softmax_cross_entropy(y, aux_y_, weights=mask)  # compute loss
     loss = 1 * loss + 0.8 * loss_aux
+    return loss
+
 
 def back_bone(x, input_size=(256, 256, 1), num_class=1):
     model = Segception.Segception_small(num_classes=num_class, weights=None, input_shape=input_size)
@@ -593,11 +598,14 @@ def back_bone(x, input_size=(256, 256, 1), num_class=1):
     return y_, aux_y_
 
 
-def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1):
+def unet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
+    from networks.unet import IoU_fun, mean_iou
     inputs = Input(input_size)
     y_, aux_y_ = Lambda(back_bone, arguments={'input_size': input_size, 'num_class': num_class})(inputs)
     model = Model(input=inputs, output=[y_, aux_y_])
+    model.summary()
+    optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(optimizer=optimizer, loss=loss, metrics=['accuracy', IoU_fun])
 
-
+    return model
 
