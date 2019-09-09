@@ -121,7 +121,7 @@ class ShatheBlock(object):
         self.conv3 = Conv_BN(filters, kernel_size=1)
 
     def __call__(self, inputs, training=True):
-        x = self.conv(inputs)
+        x = self.conv(inputs, training=training)
         x = self.conv1(x, training=training)
         x = self.conv2(x, training=training)
         x = self.conv3(x, training=training)
@@ -475,18 +475,9 @@ def loss(y_true, y_pred):
     return loss
 
 
-def back_bone(x, input_size=(256, 256, 1), num_class=1):
-    print("input", x.shape)
+def back_bone(outputs, num_class=1):
+    # print("input", x.shape)
     # base_model = keras.applications.xception.Xception(include_top=False, input_shape=input_size, pooling='avg')(x)
-    base_model, outputs = Xception(x)
-    outputs.reverse()
-    print("base_model", base_model.shape)
-    # output_1 = base_model.get_layer('block2_sepconv2_bn').output
-    # output_2 = base_model.get_layer('block3_sepconv2_bn').output
-    # output_3 = base_model.get_layer('block4_sepconv2_bn').output
-    # output_4 = base_model.get_layer('block13_sepconv2_bn').output
-    # output_5 = base_model.get_layer('block14_sepconv2_bn').output
-    # outputs = [output_5, output_4, output_3, output_2, output_1]
 
     # Encoder
     adap_encoder_1 = EncoderAdaption(filters=128, kernel_size=3, dilation_rate=1)
@@ -547,7 +538,9 @@ def back_bone(x, input_size=(256, 256, 1), num_class=1):
 def segnet(input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
     from networks.unet import IoU_fun, mean_iou
     inputs = Input(input_size)
-    y_ = Lambda(back_bone, arguments={'input_size': input_size, 'num_class': num_class})(inputs)
+    base_model, outputs = Xception(inputs)
+    outputs.reverse()
+    y_ = Lambda(back_bone, arguments={'num_class': num_class})(outputs)
     # y_, aux_y_ = back_bone(inputs, input_size=input_size, num_class=num_class)
     model = Model(input=inputs, output=y_)
     model.summary()
