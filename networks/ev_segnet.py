@@ -476,8 +476,11 @@ def loss(y_true, y_pred):
 
 
 def back_bone(x, input_size=(256, 256, 1), num_class=1):
+    print("input", x.shape)
     # base_model = keras.applications.xception.Xception(include_top=False, input_shape=input_size, pooling='avg')(x)
     base_model, outputs = Xception(x)
+    outputs.reverse()
+    print("base_model", base_model.shape)
     # output_1 = base_model.get_layer('block2_sepconv2_bn').output
     # output_2 = base_model.get_layer('block3_sepconv2_bn').output
     # output_3 = base_model.get_layer('block4_sepconv2_bn').output
@@ -533,7 +536,7 @@ def back_bone(x, input_size=(256, 256, 1), num_class=1):
     # print("x1", x.shape)
     x = conv_logits(x)
     x = upsampling(x, scale=2)
-    # print("output", x.shape)
+    print("output", x.shape)
     aux_loss = False
     if aux_loss:
         return x, x
