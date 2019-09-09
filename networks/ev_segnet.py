@@ -581,12 +581,7 @@ class FeatureGeneration_Dil(tf.keras.Model):
         return x
 
 
-def Xception(include_top=True,
-             input_tensor=None,
-             input_shape=None,
-             pooling=None,
-             classes=1000,
-             **kwargs):
+def Xception(input_tensor=None, pooling=None):
     # backend, layers, models, keras_utils = get_submodules_from_kwargs(kwargs)
 
     img_input = input_tensor
