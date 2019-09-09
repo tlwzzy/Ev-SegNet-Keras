@@ -755,7 +755,7 @@ def loss(y_true, y_pred):
 
 def back_bone(x, input_size=(256, 256, 1), num_class=1):
     # base_model = keras.applications.xception.Xception(include_top=False, input_shape=input_size, pooling='avg')(x)
-    base_model = Xception(x)
+    base_model = Xception(x, input_size)
     output_1 = base_model.get_layer('block2_sepconv2_bn').output
     output_2 = base_model.get_layer('block3_sepconv2_bn').output
     output_3 = base_model.get_layer('block4_sepconv2_bn').output
@@ -822,7 +822,8 @@ def back_bone(x, input_size=(256, 256, 1), num_class=1):
 def segnet(pretrained_weights=None, input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
     from networks.unet import IoU_fun, mean_iou
     inputs = Input(input_size)
-    y_, aux_y_ = Lambda(back_bone, arguments={'input_size': input_size, 'num_class': num_class})(inputs)
+    # y_, aux_y_ = Lambda(back_bone, arguments={'input_size': input_size, 'num_class': num_class})(inputs)
+    y_, aux_y_ = back_bone(inputs, input_size=input_size, num_class=num_class)
     model = Model(input=inputs, output=[y_, aux_y_])
     model.summary()
     optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
