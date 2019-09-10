@@ -1,12 +1,14 @@
 import tensorflow as tf
-# from tensorflow.keras import layers, regularizers
-from keras.layers import Lambda, Input
+from keras.layers import Lambda, Input, Concatenate, Add
 from keras.models import Model
 from keras import backend as K
 from keras.optimizers import RMSprop, SGD, Adam
 from keras import layers
 from keras import regularizers
-import keras
+
+
+def resize_bilinear_(inputs, size, align_corners=False):
+    return tf.image.resize_bilinear(inputs, size=size, align_corners=align_corners)
 
 
 def upsampling(inputs, scale):
@@ -14,13 +16,23 @@ def upsampling(inputs, scale):
     b = inputs.shape[2]
     # return tf.image.resize_bilinear(inputs, size=[tf.shape(inputs)[1] * scale, tf.shape(inputs)[2] * scale],
     #                                 align_corners=True)
-    return tf.image.resize_bilinear(inputs, size=[a * scale, b * scale],
-                                    align_corners=True)
+    # return tf.image.resize_bilinear(inputs, size=[a * scale, b * scale],
+    #                                 align_corners=True)
+    return Lambda(resize_bilinear_, arguments={'size': [a * scale, b * scale],
+                                               'align_corners': True})(inputs)
+
+
+def resize_bilinear__(x):
+    inputs = x[0]
+    input_to_copy = x[1]
+    return tf.image.resize_bilinear(inputs, [input_to_copy.get_shape()[1].value,
+                                             input_to_copy.get_shape()[2].value], align_corners=True)
 
 
 def reshape_into(inputs, input_to_copy):
-    return tf.image.resize_bilinear(inputs, [input_to_copy.get_shape()[1].value,
-                                             input_to_copy.get_shape()[2].value], align_corners=True)
+    # return tf.image.resize_bilinear(inputs, [input_to_copy.get_shape()[1].value,
+    #                                          input_to_copy.get_shape()[2].value], align_corners=True)
+    return Lambda(resize_bilinear__)([inputs, input_to_copy])
 
 
 # convolution
@@ -60,9 +72,9 @@ class Conv_BN(object):
         self.conv = conv(filters=filters, kernel_size=kernel_size, strides=strides)
         self.bn = layers.BatchNormalization(epsilon=1e-3, momentum=0.993)
 
-    def __call__(self, inputs, training=True, activation=True):
+    def __call__(self, inputs, activation=True):
         x = self.conv(inputs)
-        x = self.bn(x, training=training)
+        x = self.bn(x)
         if activation:
             x = layers.LeakyReLU(alpha=0.3)(x)
 
@@ -81,9 +93,9 @@ class DepthwiseConv_BN(object):
                                   dilation_rate=dilation_rate)
         self.bn = layers.BatchNormalization(epsilon=1e-3, momentum=0.993)
 
-    def __call__(self, inputs, training=True):
+    def __call__(self, inputs):
         x = self.conv(inputs)
-        x = self.bn(x, training=training)
+        x = self.bn(x)
         x = layers.LeakyReLU(alpha=0.3)(x)
 
         return x
@@ -100,9 +112,9 @@ class Transpose_Conv_BN(object):
         self.conv = transposeConv(filters=filters, kernel_size=kernel_size, strides=strides)
         self.bn = layers.BatchNormalization(epsilon=1e-3, momentum=0.993)
 
-    def call(self, inputs, training=True):
+    def call(self, inputs):
         x = self.conv(inputs)
-        x = self.bn(x, training=training)
+        x = self.bn(x)
         x = layers.LeakyReLU(alpha=0.3)(x)
 
         return x
@@ -120,65 +132,16 @@ class ShatheBlock(object):
         self.conv2 = DepthwiseConv_BN(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
         self.conv3 = Conv_BN(filters, kernel_size=1)
 
-    def __call__(self, inputs, training=True):
-        x = self.conv(inputs, training=training)
-        x = self.conv1(x, training=training)
-        x = self.conv2(x, training=training)
-        x = self.conv3(x, training=training)
+    def __call__(self, inputs):
+        x = self.conv(inputs)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
         return x + inputs
 
 
-class ShatheBlock_MultiDil(object):
-    def __init__(self, filters, kernel_size, dilation_rate=1, bottleneck=2):
-        # super(ShatheBlock_MultiDil, self).__init__()
-
-        self.filters = filters * bottleneck
-        self.filters_dil = filters / 2
-        self.kernel_size = kernel_size
-
-        self.conv = DepthwiseConv_BN(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
-        self.conv1 = DepthwiseConv_BN(self.filters_dil, kernel_size=kernel_size, dilation_rate=dilation_rate * 8)
-        self.conv2 = DepthwiseConv_BN(self.filters_dil, kernel_size=kernel_size, dilation_rate=dilation_rate * 4)
-        self.conv3 = DepthwiseConv_BN(self.filters_dil, kernel_size=kernel_size, dilation_rate=dilation_rate * 6)
-        self.conv4 = DepthwiseConv_BN(self.filters_dil, kernel_size=kernel_size, dilation_rate=dilation_rate * 2)
-        self.conv5 = DepthwiseConv_BN(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
-        self.conv6 = Conv_BN(filters, kernel_size=1)
-
-    def __call__(self, inputs, training=True):
-        x1 = self.conv(inputs, training=training)
-        x2 = self.conv1(x1, training=training)
-        x3 = self.conv2(x1, training=training)
-        x4 = self.conv3(x1, training=training)
-        x5 = self.conv4(x1, training=training)
-        x6 = self.conv5(tf.concat((x2, x3, x4, x5), -1) + x1, training=training)
-        x7 = self.conv6(x6, training=training)
-        return x7 + inputs
-
-
-class ASPP(object):
-    def __init__(self, filters, kernel_size):
-        # super(ASPP, self).__init__()
-
-        self.conv1 = DepthwiseConv_BN(filters, kernel_size=1, dilation_rate=1)
-        self.conv2 = DepthwiseConv_BN(filters, kernel_size=kernel_size, dilation_rate=4)
-        self.conv3 = DepthwiseConv_BN(filters, kernel_size=kernel_size, dilation_rate=8)
-        self.conv4 = DepthwiseConv_BN(filters, kernel_size=kernel_size, dilation_rate=16)
-        self.conv5 = Conv_BN(filters, kernel_size=1)
-
-    def __call__(self, inputs, training=True, operation='concat'):
-        feature_map_size = tf.shape(inputs)
-        image_features = tf.reduce_mean(inputs, [1, 2], keep_dims=True)
-        image_features = self.conv1(image_features, training=training)
-        image_features = tf.image.resize_bilinear(image_features, (feature_map_size[1], feature_map_size[2]))
-        x1 = self.conv2(inputs, training=training)
-        x2 = self.conv3(inputs, training=training)
-        x3 = self.conv4(inputs, training=training)
-        if 'concat' in operation:
-            x = self.conv5(tf.concat((image_features, x1, x2, x3, inputs), axis=3), training=training)
-        else:
-            x = image_features + x1 + x2 + x3 + inputs
-
-        return x
+def reduce_mean_(inputs, s, keep_dims):
+    return tf.reduce_mean(inputs, s, keep_dims=keep_dims)
 
 
 class ASPP_2(object):
@@ -195,47 +158,29 @@ class ASPP_2(object):
         self.conv9 = DepthwiseConv_BN(filters, kernel_size=kernel_size, dilation_rate=(3, 6))
         self.conv5 = Conv_BN(filters, kernel_size=1)
 
-    def __call__(self, inputs, training=True, operation='concat'):
+    def __call__(self, inputs, operation='concat'):
         feature_map_size = tf.shape(inputs)
-        image_features = tf.reduce_mean(inputs, [1, 2], keep_dims=True)
-        image_features = self.conv1(image_features, training=training)
-        image_features = tf.image.resize_bilinear(image_features, (feature_map_size[1], feature_map_size[2]))
-        x1 = self.conv2(inputs, training=training)
-        x2 = self.conv3(inputs, training=training)
-        x3 = self.conv4(inputs, training=training)
-        x4 = self.conv6(inputs, training=training)
-        x5 = self.conv7(inputs, training=training)
-        x4 = self.conv8(inputs, training=training) + x4
-        x5 = self.conv9(inputs, training=training) + x5
+        # image_features = tf.reduce_mean(inputs, [1, 2], keep_dims=True)
+        image_features = Lambda(reduce_mean_, arguments={'s': [1, 2], 'keep_dims': True})(inputs)
+        image_features = self.conv1(image_features)
+        # image_features = tf.image.resize_bilinear(image_features, (feature_map_size[1], feature_map_size[2]))
+        image_features = Lambda(resize_bilinear_, arguments={'size': [feature_map_size[1], feature_map_size[2]]})(
+            image_features)
+
+        x1 = self.conv2(inputs)
+        x2 = self.conv3(inputs)
+        x3 = self.conv4(inputs)
+        x4 = self.conv6(inputs)
+        x5 = self.conv7(inputs)
+        x4 = self.conv8(inputs) + x4
+        x5 = self.conv9(inputs) + x5
         if 'concat' in operation:
-            x = self.conv5(tf.concat((image_features, x1, x2, x3, x4, x5, inputs), axis=3), training=training)
+            con = Concatenate(axis=3)([image_features, x1, x2, x3, x4, x5, inputs])
+            # x = self.conv5(tf.concat((image_features, x1, x2, x3, x4, x5, inputs), axis=3))
+            x = self.conv5(con)
         else:
-            x = self.conv5(image_features + x1 + x2 + x3 + x5 + x4, training=training) + inputs
+            x = self.conv5(image_features + x1 + x2 + x3 + x5 + x4) + inputs
 
-        return x
-
-
-class DPC(object):
-    def __init__(self, filters):
-        # super(DPC, self).__init__()
-
-        self.conv1 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(1, 6))
-        self.conv2 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(18, 15))
-        self.conv3 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(6, 21))
-        self.conv4 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(1, 1))
-        self.conv5 = DepthwiseConv_BN(filters, kernel_size=3, dilation_rate=(6, 3))
-
-    def __call__(self, inputs, training=True, operation='concat'):
-        x1 = self.conv1(inputs, training=training)
-        x2 = self.conv2(x1, training=training)
-        x3 = self.conv3(x1, training=training)
-        x4 = self.conv4(x1, training=training)
-        x5 = self.conv5(x2, training=training)
-
-        if 'concat' in operation:
-            x = tf.concat((x1, x2, x3, x4, x5, inputs), axis=3)
-        else:
-            x = x1 + x2 + x3 + x4 + x5 + inputs
         return x
 
 
@@ -249,9 +194,9 @@ class EncoderAdaption(object):
         self.conv1 = Conv_BN(filters, kernel_size=1)
         self.conv2 = ShatheBlock(filters, kernel_size=kernel_size, dilation_rate=dilation_rate)
 
-    def __call__(self, inputs, training=True):
-        x = self.conv1(inputs, training=training)
-        x = self.conv2(x, training=training)
+    def __call__(self, inputs):
+        x = self.conv1(inputs)
+        x = self.conv2(x)
         return x
 
 
@@ -268,33 +213,11 @@ class FeatureGeneration(object):
             self.blocks = self.blocks + [
                 ShatheBlock(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)]
 
-    def __call__(self, inputs, training=True):
+    def __call__(self, inputs):
 
-        x = self.conv0(inputs, training=training)
+        x = self.conv0(inputs)
         for block in self.blocks:
-            x = block(x, training=training)
-
-        return x
-
-
-class FeatureGeneration_Dil(object):
-    def __init__(self, filters, kernel_size, dilation_rate=1, blocks=3):
-        # super(FeatureGeneration_Dil, self).__init__()
-
-        self.filters = filters
-        self.kernel_size = kernel_size
-
-        self.conv0 = Conv_BN(self.filters, kernel_size=1)
-        self.blocks = []
-        for n in range(blocks):
-            self.blocks = self.blocks + [
-                ShatheBlock_MultiDil(self.filters, kernel_size=kernel_size, dilation_rate=dilation_rate)]
-
-    def __call__(self, inputs, training=True):
-
-        x = self.conv0(inputs, training=training)
-        for block in self.blocks:
-            x = block(x, training=training)
+            x = block(x)
 
         return x
 
@@ -339,7 +262,8 @@ def Xception(input_tensor, pooling=None):
                             strides=(2, 2),
                             padding='same',
                             name='block2_pool')(x)
-    x = layers.add([x, residual])
+    # x = layers.add([x, residual])
+    x = Add()([x, residual])
 
     residual = layers.Conv2D(256, (1, 1), strides=(2, 2),
                              padding='same', use_bias=False)(x)
@@ -362,7 +286,8 @@ def Xception(input_tensor, pooling=None):
     x = layers.MaxPooling2D((3, 3), strides=(2, 2),
                             padding='same',
                             name='block3_pool')(x)
-    x = layers.add([x, residual])
+    # x = layers.add([x, residual])
+    x = Add()([x, residual])
 
     residual = layers.Conv2D(728, (1, 1),
                              strides=(2, 2),
@@ -387,7 +312,8 @@ def Xception(input_tensor, pooling=None):
     x = layers.MaxPooling2D((3, 3), strides=(2, 2),
                             padding='same',
                             name='block4_pool')(x)
-    x = layers.add([x, residual])
+    # x = layers.add([x, residual])
+    x = Add()([x, residual])
 
     for i in range(8):
         residual = x
@@ -415,7 +341,8 @@ def Xception(input_tensor, pooling=None):
         x = layers.BatchNormalization(axis=channel_axis,
                                       name=prefix + '_sepconv3_bn')(x)
 
-        x = layers.add([x, residual])
+        # x = layers.add([x, residual])
+        x = Add()([x, residual])
 
     residual = layers.Conv2D(1024, (1, 1), strides=(2, 2),
                              padding='same', use_bias=False)(x)
@@ -439,7 +366,8 @@ def Xception(input_tensor, pooling=None):
                             strides=(2, 2),
                             padding='same',
                             name='block13_pool')(x)
-    x = layers.add([x, residual])
+    # x = layers.add([x, residual])
+    x = Add()([x, residual])
 
     x = layers.SeparableConv2D(1536, (3, 3),
                                padding='same',
@@ -540,8 +468,9 @@ def segnet(input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
     inputs = Input(input_size)
     base_model, outputs = Xception(inputs)
     outputs.reverse()
-    y_ = Lambda(back_bone, arguments={'num_class': num_class})(outputs)
+    # y_ = Lambda(back_bone, arguments={'num_class': num_class})(outputs)
     # y_, aux_y_ = back_bone(inputs, input_size=input_size, num_class=num_class)
+    y_ = back_bone(outputs, num_class)
     model = Model(input=inputs, output=y_)
     model.summary()
     optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
