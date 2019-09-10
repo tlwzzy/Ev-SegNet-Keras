@@ -9,7 +9,7 @@ import os
 from keras.callbacks import ReduceLROnPlateau
 from keras.callbacks import CSVLogger
 
-from networks import ev_segnet
+from networks import ev_segnet, unet, deeplabv3plus
 from networks import unet
 
 from keras.models import Model, model_from_json
@@ -23,7 +23,6 @@ import cv2
 import time
 
 from networks.unet import IoU_fun, mean_iou
-
 
 # seed 1234 is used for reproducibility
 np.random.seed(seed=1234)
@@ -218,7 +217,9 @@ def to_multi_gpu(model, n_gpus=4):
 
 def train():
     # model = unet.unet(input_size=(scale_h, scale_w, channel), num_class=n_classes, lr=lr, momentum=momentum)
-    model = ev_segnet.segnet(input_size=(scale_h, scale_w, channel), num_class=n_classes, lr=lr, momentum=momentum)
+    # model = ev_segnet.segnet(input_size=(scale_h, scale_w, channel), num_class=n_classes, lr=lr, momentum=momentum)
+    model = deeplabv3plus.deeplabv3_plus(input_size=(scale_h, scale_w, channel), num_class=n_classes, lr=lr,
+                                         momentum=momentum)
 
     # model = to_multi_gpu(model, 4)
     # model.load_weights('039_0.827.hdf5')
