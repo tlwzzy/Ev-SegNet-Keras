@@ -464,16 +464,17 @@ def back_bone(outputs, num_class=1):
 
 
 def segnet(input_size=(256, 256, 1), num_class=1, lr=0.001, momentum=0.9):
-    from networks.unet import IoU_fun, mean_iou
+    from networks.unet import IoU_fun, mean_iou, IoU_loss_fun
     inputs = Input(input_size)
     base_model, outputs = Xception(inputs)
+    # outputs = Lambda(Xception)(inputs)
     outputs.reverse()
-    # y_ = Lambda(back_bone, arguments={'num_class': num_class})(outputs)
+    y_ = Lambda(back_bone, arguments={'num_class': num_class})(outputs)
     # y_, aux_y_ = back_bone(inputs, input_size=input_size, num_class=num_class)
-    y_ = back_bone(outputs, num_class)
+    # y_ = back_bone(outputs, num_class)
     model = Model(input=inputs, output=y_)
     model.summary()
     optimizer = Adam(lr=lr, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    model.compile(optimizer=optimizer, loss="categorical_crossentropy", metrics=['accuracy', IoU_fun])
+    model.compile(optimizer=optimizer, loss=IoU_loss_fun, metrics=['accuracy', mean_iou]) # categorical_crossentropy
 
     return model
